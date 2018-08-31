@@ -17,7 +17,7 @@ class Chip8Cpu:
         self.registers = {
             'v': [],
             'I': 0,
-            'pc': 0,
+            'pc': PROGRAM_COUNTER_START, # O tal vez 0?
             'stack': [],
             'sp': 0
         }
@@ -32,13 +32,17 @@ class Chip8Cpu:
             'sound_timer': 0
         }
 
+        #Debemos divir los OPCODES segun el tipo de operacion y construir diccionarios que 'traduzcan' el codigo
+
+
+
         #Creamos el array de memoria
 
-        memory = bytearray(MAX_MEMORY)
+        self.memory = bytearray(MAX_MEMORY)
 
     def load_rom(self, rom, offset=PROGRAM_COUNTER_START):
         """
-        Carga la rom en memoria
+        Carga un archivo en memoria a partir del lugar indicado
 
         :param rom: el nombre del archivo a cargar
         :param offset: la ubicación de memoria donde empezar a cargar el archivo
@@ -46,8 +50,13 @@ class Chip8Cpu:
         """
         with open(rom, "rb") as file_data:
              #Enumerate nos permite iterar sobre un objeto mientras mantenemos un contador del bucle actual
-            for index, val in enumerate(file_data):
+            for index, val in enumerate(file_data.read()): #Is a .read() needed?
                 self.memory[index + offset] = val
 
+    def execute_instruction(self):
+        # Cada instruccion está formada por 2 bytes. Cada byte está formado por 8 bits.
+        # Debemos desplazar el valor del primer byte 8 puestos a la izq. para luego realizar un OR sobre ambos bytes
+        self.instruction = self.memory[self.registers['pc']] << 8 | self.memory[self.registers['pc'] + 1]
 
-
+        self.registers['pc'] = self.registers['pc'] + 2
+        print(hex(self.instruction))
