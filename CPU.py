@@ -2,9 +2,10 @@
 
 
 from Config import MAX_MEMORY, PROGRAM_COUNTER_START, DEBUG
+from os import urandom
+from random import seed, randint
 
 class Chip8Cpu:
-
 
     def __init__(self):
 
@@ -15,34 +16,45 @@ class Chip8Cpu:
         # SP permite almacenar el nivel en el que se encuentrra el ultimo puntero de instrucciones almacenado.
 
         self.registers = {
-            'v': [None] * 16,
+            'v': [0] * 16,
             'I': 0,
-            'pc': PROGRAM_COUNTER_START, # O tal vez 0?
-            'stack': [None] * 16,
+            'pc': PROGRAM_COUNTER_START,  # O tal vez 0?
+            'stack': [0] * 16,
             'sp': 0
         }
 
-
-        #Ambos llevan a cabo una cuenta regresiva a 60Hz hasta llegar a 0
-        #delay_timer: controla los eventos de los juegos
-        #sound_timer: si su valor es distinto de cero se produce un pitido
+        # Ambos llevan a cabo una cuenta regresiva a 60Hz hasta llegar a 0
+        # delay_timer: controla los eventos de los juegos
+        # sound_timer: si su valor es distinto de cero se produce un pitido
 
         self.timers = {
             'delay_timer': 0,
             'sound_timer': 0
         }
 
-        #Debemos divir los OPCODES segun el tipo de operacion y construir diccionarios que 'traduzcan' el codigo
-
+        # Debemos divir los OPCODES segun el tipo de operacion y construir diccionarios que 'traduzcan' el codigo
 
         self.general_opcode_lookup = {
             0x1: self.jump_to_address,
             0x3: self.skip_if_vx_equals_nn,
-            0x6: self.set_vx_to_nn
+            0x4: self.skip_if_vx_not_equals_nn,
+            0x5: self.skip_if_vx_equals_vy,
+            0x6: self.set_vx_to_nn,
+            0x8: self.execute_logic_instruction,
+            0x9: self.skip_if_vx_not_equals_vy,
+            0xA: self.set_i_to_address,
+            0xB: self.jump_to_address,
+            0xC: self.set_vx_bitwise_random
+        }
+
+        self.logic_opcode_lookup = {
+            0x0: self.set_vx_to_vy,
+            0x1: self.set_vx_to_vx_or_vy
         }
 
         self.opcode = 0
         self.memory = bytearray(MAX_MEMORY)
+        seed(urandom(20))
 
 
     def load_rom(self, rom, offset=PROGRAM_COUNTER_START):
@@ -54,8 +66,8 @@ class Chip8Cpu:
 
         """
         with open(rom, "rb") as file_data:
-             #Enumerate nos permite iterar sobre un objeto mientras mantenemos un contador del bucle actual
-            for index, val in enumerate(file_data.read()): #Is a .read() needed?
+            # Enumerate nos permite iterar sobre un objeto mientras mantenemos un contador del bucle actual
+            for index, val in enumerate(file_data.read()):  # Is a .read() needed?
                 self.memory[index + offset] = val
 
     def execute_instruction(self):
@@ -79,31 +91,108 @@ class Chip8Cpu:
         try:
             self.general_opcode_lookup[instruction]()
         except KeyError:
-            print("ERROR. OpCode: " + hex(instruction) + " Not found in lookup table.")
+            print("ERROR. OpCode: " + hex(self.opcode) + " Not found in general lookup table.")
 
         return self.opcode
+
+    def execute_logic_instruction(self):
+        instruction = self.opcode & 0x000F
+        try:
+            self.logic_opcode_lookup[instruction]()
+        except KeyError:
+            print("ERROR. OpCode: " + hex(self.opcode) + " Not found in logical lookup table.")
+
 
     def jump_to_address(self):
         """
         Salta a la dirección de memoria especificada por los últimos 3 bits de la instrucción
         """
-        self.registers['pc'] = self.opcode & 0x0FFF
+        if (self.opcode & 0xF000) >> 12 == 0xB:
+            self.registers['pc'] = (self.opcode & 0x0FFF) + self.registers['v'][0]
+        else:
+            self.registers['pc'] = self.opcode & 0x0FFF
 
     def set_vx_to_nn(self):
         """
         Establece el valor de Vx a nn
         """
-        registerToSet = (self.opcode & 0x0F00) >> 8
-        valueToSet = (self.opcode & 0x00FF)
-        self.registers['v'][registerToSet] = valueToSet
+        register_to_set = (self.opcode & 0x0F00) >> 8
+        value_to_set = (self.opcode & 0x00FF)
+        self.registers['v'][register_to_set] = value_to_set
 
     def skip_if_vx_equals_nn(self):
         """
         Si Vx es igual a nn saltamos la siguiente instrucción
         """
-        registerToCheck = (self.opcode & 0x0F00) >> 8
-        valueToCheck = (self.opcode & 0x00FF)
+        register_to_check = (self.opcode & 0x0F00) >> 8
+        value_to_check = (self.opcode & 0x00FF)
 
-        if self.registers['v'][registerToCheck] == valueToCheck:
+        if self.registers['v'][register_to_check] == value_to_check:
             self.registers['pc'] = self.registers['pc'] + 2
+
+    def skip_if_vx_not_equals_nn(self):
+        """
+        Si Vx es desigual a nn saltamos la siguiente instrucción.
+        """
+        register_to_check = (self.opcode & 0x0F00) >> 8
+        value_to_check = (self.opcode & 0x00FF)
+
+        if self.registers['v'][register_to_check] != value_to_check:
+            self.registers['pc'] = self.registers['pc'] + 2
+
+    def skip_if_vx_equals_vy(self):
+        """
+        Si Vx es igual a Vy saltamos la siguiente instrucción.
+        """
+        vx_register = (self.opcode & 0x0F00) >> 8
+        vy_register = (self.opcode & 0x00F0) >> 4
+
+        if self.registers['v'][vx_register] == self.registers['v'][vy_register]:
+            self.registers['pc'] = self.registers['pc'] + 2
+
+    def skip_if_vx_not_equals_vy(self):
+        """
+        Si Vx es desigual a Vy saltamos la siguiente instrucción.
+        """
+        vx_register = (self.opcode & 0x0F00) >> 8
+        vy_register = (self.opcode & 0x00F0) >> 4
+
+        if self.registers['v'][vx_register] != self.registers['v'][vy_register]:
+            self.registers['pc'] = self.registers['pc'] + 2
+
+    def set_i_to_address(self):
+        """
+        Asigna a I nnn (?)
+        """
+        self.registers['I'] = (self.opcode & 0x0FFF)
+
+    def set_vx_bitwise_random(self):
+        """
+        Bitwise random number with nnn and set result to Vx
+        """
+        vx_register = (self.opcode & 0x0F00) >> 8
+        nnn_value = (self.opcode & 0x00FF)
+
+        self.registers['v'][vx_register] = randint(0, 255) & nnn_value
+
+    def set_vx_to_vy(self):
+        """
+        Establece el valor de Vy a Vx
+        """
+        vx_register = (self.opcode & 0x0F00) >> 8
+        vy_register = (self.opcode & 0x00F0) >> 4
+
+        self.registers['v'][vx_register] = self.registers['v'][vy_register]
+
+    def set_vx_to_vx_or_vy(self):
+        """
+        Realiza la operación OR sobre Vx y Vy y guarda el valor en Vx
+        """
+        vx_register = (self.opcode & 0x0F00) >> 8
+        vy_register = (self.opcode & 0x00F0) >> 4
+
+        self.registers['v'][vx_register] = self.registers['v'][vx_register] | self.registers['v'][vy_register]
+
+
+
 

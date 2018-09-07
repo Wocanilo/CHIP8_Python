@@ -9,7 +9,7 @@ SCREEN_HEIGHT = 32
 SCREEN_DEPTH = 8
 
 
-PIXEL_TYPES = {
+PIXEL_STATES = {
     0: (0, 0, 0, 255),
     1: (250, 250, 250, 255)
 }
