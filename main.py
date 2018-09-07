@@ -12,7 +12,7 @@ if __name__ == '__main__':
     cpu = Chip8Cpu()
 
     cpu.load_rom("FONTS.chip8", 0x050)
-    cpu.load_rom("pong.rom")
+    cpu.load_rom("Chip8Test.rom")
 
     running = True
 

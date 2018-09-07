@@ -4,6 +4,8 @@
 from Config import MAX_MEMORY, PROGRAM_COUNTER_START, DEBUG
 from os import urandom
 from random import seed, randint
+import numpy
+
 
 class Chip8Cpu:
 
@@ -16,7 +18,7 @@ class Chip8Cpu:
         # SP permite almacenar el nivel en el que se encuentrra el ultimo puntero de instrucciones almacenado.
 
         self.registers = {
-            'v': [0] * 16,
+            'v': [numpy.uint8(0)] * 16,
             'I': 0,
             'pc': PROGRAM_COUNTER_START,  # O tal vez 0?
             'stack': [0] * 16,
@@ -35,11 +37,14 @@ class Chip8Cpu:
         # Debemos divir los OPCODES segun el tipo de operacion y construir diccionarios que 'traduzcan' el codigo
 
         self.general_opcode_lookup = {
+            0x0: self.clear_or_end_subroutine,
             0x1: self.jump_to_address,
+            0x2: self.call_subroutine,
             0x3: self.skip_if_vx_equals_nn,
             0x4: self.skip_if_vx_not_equals_nn,
             0x5: self.skip_if_vx_equals_vy,
             0x6: self.set_vx_to_nn,
+            0x7: self.add_nn_to_vx_no_flag,
             0x8: self.execute_logic_instruction,
             0x9: self.skip_if_vx_not_equals_vy,
             0xA: self.set_i_to_address,
@@ -49,13 +54,14 @@ class Chip8Cpu:
 
         self.logic_opcode_lookup = {
             0x0: self.set_vx_to_vy,
-            0x1: self.set_vx_to_vx_or_vy
+            0x1: self.set_vx_to_vx_or_vy,
+            0x2: self.set_vx_to_vx_and_vy,
+            0x3: self.set_vx_to_vx_xor_vy
         }
 
         self.opcode = 0
         self.memory = bytearray(MAX_MEMORY)
         seed(urandom(20))
-
 
     def load_rom(self, rom, offset=PROGRAM_COUNTER_START):
         """
@@ -118,7 +124,7 @@ class Chip8Cpu:
         """
         register_to_set = (self.opcode & 0x0F00) >> 8
         value_to_set = (self.opcode & 0x00FF)
-        self.registers['v'][register_to_set] = value_to_set
+        self.registers['v'][register_to_set] = numpy.uint8(value_to_set)
 
     def skip_if_vx_equals_nn(self):
         """
@@ -173,7 +179,7 @@ class Chip8Cpu:
         vx_register = (self.opcode & 0x0F00) >> 8
         nnn_value = (self.opcode & 0x00FF)
 
-        self.registers['v'][vx_register] = randint(0, 255) & nnn_value
+        self.registers['v'][vx_register] = numpy.uint8(randint(0, 255) & nnn_value)
 
     def set_vx_to_vy(self):
         """
@@ -182,7 +188,7 @@ class Chip8Cpu:
         vx_register = (self.opcode & 0x0F00) >> 8
         vy_register = (self.opcode & 0x00F0) >> 4
 
-        self.registers['v'][vx_register] = self.registers['v'][vy_register]
+        self.registers['v'][vx_register] = numpy.uint8(self.registers['v'][vy_register])
 
     def set_vx_to_vx_or_vy(self):
         """
@@ -191,8 +197,52 @@ class Chip8Cpu:
         vx_register = (self.opcode & 0x0F00) >> 8
         vy_register = (self.opcode & 0x00F0) >> 4
 
-        self.registers['v'][vx_register] = self.registers['v'][vx_register] | self.registers['v'][vy_register]
+        self.registers['v'][vx_register] = numpy.uint8(self.registers['v'][vx_register] | self.registers['v'][vy_register])
 
+    def set_vx_to_vx_and_vy(self):
+        """
+        Realiza la operación AND sobre Vx y Vy y guarda el valor en Vx
+        """
+        vx_register = (self.opcode & 0x0F00) >> 8
+        vy_register = (self.opcode & 0x00F0) >> 4
 
+        self.registers['v'][vx_register] = numpy.uint8(self.registers['v'][vx_register] & self.registers['v'][vy_register])
 
+    def set_vx_to_vx_xor_vy(self):
+        """
+        Realiza la operación AND sobre Vx y Vy y guarda el valor en Vx
+        """
+        vx_register = (self.opcode & 0x0F00) >> 8
+        vy_register = (self.opcode & 0x00F0) >> 4
 
+        self.registers['v'][vx_register] = numpy.uint8(self.registers['v'][vx_register] ^ self.registers['v'][vy_register])
+
+    def call_subroutine(self):
+        """
+        Llama a la subrutina en nnn.
+        """
+        subroutine_address = self.opcode & 0x0FFF
+
+        self.registers['stack'][self.registers['sp']] = self.registers['pc'] + 2  # Saltamos a la siguiente instrucción.
+        self.registers['sp'] = self.registers['sp'] + 1
+
+        self.registers['pc'] = subroutine_address
+
+    def clear_or_end_subroutine(self):
+        """
+        Limpia la pantalla
+        El flujo del programa se devuelve a la instrucción que llamó a la subrutina
+        """
+        if self.opcode & 0x000F == 0xE:
+            self.registers['pc'] = self.registers['stack'][self.registers['sp']]
+            self.registers['sp'] = self.registers['sp'] - 1
+        # else:
+            # clear screen
+
+    def add_nn_to_vx_no_flag(self):
+        """
+        Suma a Vx nn sin establecer la bandera en caso de overflow
+        """
+        vx_register = (self.opcode & 0x0F00) >> 8
+
+        self.registers['v'][vx_register] = numpy.add(self.registers['v'][vx_register], numpy.uint8(self.opcode & 0x00FF))

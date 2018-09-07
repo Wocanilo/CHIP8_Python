@@ -1,6 +1,6 @@
 import unittest
 from CPU import Chip8Cpu
-
+import numpy
 
 class CpuTests(unittest.TestCase):
 
@@ -68,6 +68,37 @@ class CpuTests(unittest.TestCase):
         self.cpu.opcode = 0x8230
         self.cpu.set_vx_to_vy()
         self.assertEqual(self.cpu.registers['v'][0x2], self.cpu.registers['v'][0x3])
+
+    def test_set_vx_to_vx_or_vy(self):
+        self.cpu.opcode = 0x8013
+        self.cpu.registers['v'][0x0] = numpy.uint8(0x22)
+        self.cpu.registers['v'][0x1] = numpy.uint8(0x54)
+
+        self.cpu.set_vx_to_vx_or_vy()
+        self.assertEqual(self.cpu.registers['v'][0x0], 0x76)
+
+    def test_set_vx_and_vx_or_vy(self):
+        self.cpu.opcode = 0x8013
+        self.cpu.registers['v'][0x0] = numpy.uint8(0x22)
+        self.cpu.registers['v'][0x1] = numpy.uint8(0x25)
+
+        self.cpu.set_vx_to_vx_and_vy()
+        self.assertEqual(self.cpu.registers['v'][0x0], 0x20)
+
+    def test_set_vx_and_vx_xor_vy(self):
+        self.cpu.opcode = 0x8013
+        self.cpu.registers['v'][0x0] = numpy.uint8(0x22)
+        self.cpu.registers['v'][0x1] = numpy.uint8(0x25)
+
+        self.cpu.set_vx_to_vx_xor_vy()
+        self.assertEqual(self.cpu.registers['v'][0x0], 0x7)
+
+    def test_add_nn_to_vx_no_flag(self):
+        self.cpu.opcode = 0x7c23
+        self.cpu.registers['v'][0xc] = numpy.uint8(0xff)
+        self.cpu.add_nn_to_vx_no_flag()
+        self.assertEqual(self.cpu.registers['v'][0xc], 0x22)
+
 
 if __name__ == '__main__':
 
