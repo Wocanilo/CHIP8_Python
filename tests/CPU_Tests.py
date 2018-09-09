@@ -99,6 +99,46 @@ class CpuTests(unittest.TestCase):
         self.cpu.add_nn_to_vx_no_flag()
         self.assertEqual(self.cpu.registers['v'][0xc], 0x22)
 
+    def test_add_vy_to_vx(self):
+        self.cpu.opcode = 0x8234
+
+        self.cpu.registers['v'][0x2] = numpy.uint8(0x23)
+        self.cpu.registers['v'][0x3] = numpy.uint8(0x25)
+        self.cpu.add_vy_to_vx()
+
+        self.assertEqual(self.cpu.registers['v'][0x2], 0x48)
+        self.assertEqual(self.cpu.registers['v'][0xf], 0)
+
+        self.cpu.registers['v'][0x2] = numpy.uint8(0xff)
+        self.cpu.add_vy_to_vx()
+
+        self.assertEqual(self.cpu.registers['v'][0x2], 0x24)
+        self.assertEqual(self.cpu.registers['v'][0xf], 1)
+
+    def test_subtract_vy_to_vx(self):
+        self.cpu.opcode = 0x8235
+
+        self.cpu.registers['v'][0x2] = numpy.uint8(0x0)
+        self.cpu.registers['v'][0x3] = numpy.uint8(0x1)
+        self.cpu.subtract_vy_from_vx()
+
+        self.assertEqual(self.cpu.registers['v'][0x2], 0xff)
+        self.assertEqual(self.cpu.registers['v'][0xf], 1)
+
+        self.cpu.registers['v'][0x2] = numpy.uint8(0xff)
+        self.cpu.subtract_vy_from_vx()
+
+        self.assertEqual(self.cpu.registers['v'][0x2], 0xfe)
+        self.assertEqual(self.cpu.registers['v'][0xf], 0)
+
+    def test_store_least_bit_left_shift(self):
+        self.cpu.opcode = 0x8006
+
+        self.cpu.registers['v'][0x0] = numpy.uint8(0x23)
+        self.cpu.store_least_bit_left_shift()
+        self.assertEqual(self.cpu.registers['v'][0x0], 0x11)
+        self.assertEqual(self.cpu.registers['v'][0xf], 0x3)
+
 
 if __name__ == '__main__':
 

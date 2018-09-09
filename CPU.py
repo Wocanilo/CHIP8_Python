@@ -20,7 +20,7 @@ class Chip8Cpu:
         self.registers = {
             'v': [numpy.uint8(0)] * 16,
             'I': 0,
-            'pc': PROGRAM_COUNTER_START,  # O tal vez 0?
+            'pc': PROGRAM_COUNTER_START,
             'stack': [0] * 16,
             'sp': 0
         }
@@ -56,7 +56,9 @@ class Chip8Cpu:
             0x0: self.set_vx_to_vy,
             0x1: self.set_vx_to_vx_or_vy,
             0x2: self.set_vx_to_vx_and_vy,
-            0x3: self.set_vx_to_vx_xor_vy
+            0x3: self.set_vx_to_vx_xor_vy,
+            0x4: self.add_vy_to_vx,
+            0x5: self.subtract_vy_from_vx
         }
 
         self.opcode = 0
@@ -246,3 +248,40 @@ class Chip8Cpu:
         vx_register = (self.opcode & 0x0F00) >> 8
 
         self.registers['v'][vx_register] = numpy.add(self.registers['v'][vx_register], numpy.uint8(self.opcode & 0x00FF))
+
+    def add_vy_to_vx(self):
+        """
+        Suma Vy a Vx. Si llevamos un bit establecemos la bandera a 1
+        """
+        self.registers['v'][0xf] = 0 # No borrow
+        vx_register = (self.opcode & 0x0F00) >> 8
+        vy_register = (self.opcode & 0x00F0) >> 4
+
+        resultado = numpy.add(self.registers['v'][vx_register], self.registers['v'][vy_register])
+
+        if (int(self.registers['v'][vx_register ]) + int(self.registers['v'][vy_register])) > 255:
+            self.registers['v'][0xf] = 1 # Borrow
+        self.registers['v'][vx_register] = resultado
+
+    def subtract_vy_from_vx(self):
+        """
+        Resta Vy a Vx. Si llevamos un bit establecemos la bandera a 1
+        """
+        self.registers['v'][0xf] = 0 # No borrow
+        vx_register = (self.opcode & 0x0F00) >> 8
+        vy_register = (self.opcode & 0x00F0) >> 4
+
+        resultado = numpy.subtract(self.registers['v'][vx_register], self.registers['v'][vy_register])
+
+        if (int(self.registers['v'][vx_register]) - int(self.registers['v'][vy_register])) < 0:
+            self.registers['v'][0xf] = 1 # Borrow
+        self.registers['v'][vx_register] = resultado
+
+    def store_least_bit_left_shift(self):
+        """
+        Almacena el bit menos significativo de Vx en VF y luego desplaza el valor de Vx un bit a la izq
+        """
+        vx_register = (self.opcode & 0x0F00) >> 8
+
+        self.registers['v'][0xf] = self.registers['v'][vx_register] & 0x0F
+        self.registers['v'][vx_register] = self.registers['v'][vx_register] >> 1
