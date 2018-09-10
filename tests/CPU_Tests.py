@@ -177,7 +177,7 @@ class CpuTests(unittest.TestCase):
 
         self.cpu.registers['v'][0x0] = 0x23
 
-        self.cpu.set_delay_timer_to_vx()
+        self.cpu.dump_or_load_v_registers_to_memory_or_set_timer()
 
         self.assertEqual(0x23, self.cpu.timers['delay_timer'])
 
@@ -200,11 +200,45 @@ class CpuTests(unittest.TestCase):
 
         self.cpu.registers['I'] = numpy.uint16(0x0)
 
-        self.cpu.dump_v_registers_to_memory()
+        self.cpu.dump_or_load_v_registers_to_memory_or_set_timer()
 
         self.assertEqual(0x21, self.cpu.memory[0x3])
         self.assertEqual(0x24, self.cpu.memory[0x1])
 
+    def test_load_v_registers_from_memory(self):
+        self.cpu.opcode = 0xF355
+
+        self.cpu.registers['v'][0x0] = numpy.uint8(0x23)
+        self.cpu.registers['v'][0x1] = numpy.uint8(0x24)
+        self.cpu.registers['v'][0x2] = numpy.uint8(0x25)
+        self.cpu.registers['v'][0x3] = numpy.uint8(0x21)
+
+        self.cpu.registers['I'] = numpy.uint16(0x0)
+
+        self.cpu.dump_or_load_v_registers_to_memory_or_set_timer()
+
+        self.cpu.opcode = 0xF365
+
+        self.cpu.registers['v'][0x0] = numpy.uint8(0)
+        self.cpu.registers['v'][0x1] = numpy.uint8(0)
+        self.cpu.registers['v'][0x2] = numpy.uint8(0)
+        self.cpu.registers['v'][0x3] = numpy.uint8(0)
+
+        self.cpu.dump_or_load_v_registers_to_memory_or_set_timer()
+
+        self.assertEqual(0x21, self.cpu.registers['v'][0x3])
+        self.assertEqual(0x24, self.cpu.registers['v'][0x1])
+
+    def test_store_bcd_in_memory(self):
+        self.cpu.opcode = 0xF033
+
+        self.cpu.registers['v'][0x0] = 0x23
+        self.cpu.registers['I'] = numpy.uint16(0x0)
+
+        self.cpu.store_bcd_in_memory()
+
+        self.assertEqual(0x0, self.cpu.memory[0x0])
+        self.assertEqual(0x2, self.cpu.memory[0x1])
 
 
 if __name__ == '__main__':

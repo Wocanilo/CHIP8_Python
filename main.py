@@ -2,7 +2,7 @@ from CPU import Chip8Cpu
 from pygame import time
 from Screen import Chip8Screen
 
-SCALE_FACTOR  = 10
+SCALE_FACTOR = 10
 
 
 if __name__ == '__main__':
@@ -12,7 +12,7 @@ if __name__ == '__main__':
     cpu = Chip8Cpu()
 
     cpu.load_rom("FONTS.chip8", 0x050)
-    cpu.load_rom("Chip8Test.rom")
+    cpu.load_rom("pong.rom")
 
     running = True
 
@@ -20,6 +20,7 @@ if __name__ == '__main__':
 
     while running:
         internalClock.tick_busy_loop(60) # Limita la CPU a funcionar a 60Hz
+        cpu.decrement_timers()
         if cpu.execute_instruction() == 0x0:
             running = False
 

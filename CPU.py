@@ -22,7 +22,8 @@ class Chip8Cpu:
             'I': numpy.uint16(0),
             'pc': PROGRAM_COUNTER_START,
             'stack': [0] * 16,
-            'sp': 0
+            'sp': 0,
+            'index': 0
         }
 
         # Ambos llevan a cabo una cuenta regresiva a 60Hz hasta llegar a 0
@@ -66,14 +67,23 @@ class Chip8Cpu:
         }
 
         self.misc_opcode_lookup = {
+            0x3: self.store_bcd_in_memory,
             0x7: self.set_vx_to_delay_timer,
-            0x5: self.set_delay_timer_to_vx,
-            0x8: self.set_sound_timer_to_vx
+            0x5: self.dump_or_load_v_registers_to_memory_or_set_timer,
+            0x8: self.set_sound_timer_to_vx,
+            0x9: self.set_i_to_sprite_location,
+            0xE: self.add_vx_to_i
         }
 
         self.opcode = 0
         self.memory = bytearray(MAX_MEMORY)
         seed(urandom(20))
+
+    def decrement_timers(self):
+        if self.timers['delay_timer'] > 0:
+            self.timers['delay_timer'] -= 1
+        if self.timers['sound_timer'] > 0:
+            self.timers['delay_timer'] -= 1
 
     def load_rom(self, rom, offset=PROGRAM_COUNTER_START):
         """
@@ -335,14 +345,6 @@ class Chip8Cpu:
 
         self.registers['v'][vx_register] = self.timers['delay_timer']
 
-    def set_delay_timer_to_vx(self):
-        """
-        Establece delay_timer al valor de Vx
-        """
-        vx_register = (self.opcode & 0x0F00) >> 8
-
-        self.timers['delay_timer'] = self.registers['v'][vx_register]
-
     def set_sound_timer_to_vx(self):
         """
         Establece sound_timer al valor de Vx
@@ -364,13 +366,45 @@ class Chip8Cpu:
             self.registers['v'][0xf] = numpy.uint8(1)  # Overflow
         self.registers['I'] = resultado
 
-    def dump_v_registers_to_memory(self):
+    def dump_or_load_v_registers_to_memory_or_set_timer(self):
         """
-        Almacena los valores de los registros en la memoria
+        Almacena o carga los valores de los registros en/de la memoria
+        """
+        dump_or_load_or_set = (self.opcode & 0x00F0) >> 4
+        vx_register = (self.opcode & 0x0F00) >> 8
+
+        if dump_or_load_or_set == 5:
+            for index, register in enumerate(range(0x0, vx_register + 1)):
+                self.memory[self.registers['I'] + index] = self.registers['v'][register]
+        if dump_or_load_or_set == 6:
+            for index, register in enumerate(range(0x0, vx_register + 1)):
+                self.registers['v'][register] = self.memory[self.registers['I'] + index]
+        if dump_or_load_or_set == 1:
+            self.timers['delay_timer'] = self.registers['v'][vx_register]
+
+    def store_bcd_in_memory(self):
+        """
+        Guarda en memoria la representacion del numero Vx
         """
         vx_register = (self.opcode & 0x0F00) >> 8
 
-        for index, register in enumerate(range(0x0, vx_register + 1)):
-            self.memory[self.registers['I'] + index] = self.registers['v'][register]
+        self.memory[self.registers['I']] = (self.registers['v'][vx_register] & 0xF00) >> 8
+        self.memory[self.registers['I'] + 1] = (self.registers['v'][vx_register] & 0x0F0) >> 4
+        self.memory[self.registers['I'] + 2] = (self.registers['v'][vx_register] & 0x00F)
+
+    def set_i_to_sprite_location(self):
+        """
+        ???
+        """
+        vx_register = (self.opcode & 0x0F00) >> 8
+        self.registers['index'] = self.registers['v'][vx_register] * 5
+
+
+
+
+
+
+
+
 
 
