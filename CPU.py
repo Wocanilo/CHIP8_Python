@@ -19,7 +19,7 @@ class Chip8Cpu:
 
         self.registers = {
             'v': [numpy.uint8(0)] * 16,
-            'I': 0,
+            'I': numpy.uint16(0),
             'pc': PROGRAM_COUNTER_START,
             'stack': [0] * 16,
             'sp': 0
@@ -49,7 +49,7 @@ class Chip8Cpu:
             0x9: self.skip_if_vx_not_equals_vy,
             0xA: self.set_i_to_address,
             0xB: self.jump_to_address,
-            0xC: self.set_vx_bitwise_random
+            0xC: self.set_vx_bitwise_random,
         }
 
         self.logic_opcode_lookup = {
@@ -61,7 +61,14 @@ class Chip8Cpu:
             0x5: self.subtract_vx_minus_vy,
             0x6: self.store_least_bit_right_shift,
             0x7: self.subtract_vy_minus_vx,
-            0xE: self.store_most_bit_left_shift
+            0xE: self.store_most_bit_left_shift,
+            0xF: self.execute_misc_instruction
+        }
+
+        self.misc_opcode_lookup = {
+            0x7: self.set_vx_to_delay_timer,
+            0x5: self.set_delay_timer_to_vx,
+            0x8: self.set_sound_timer_to_vx
         }
 
         self.opcode = 0
@@ -113,6 +120,12 @@ class Chip8Cpu:
         except KeyError:
             print("ERROR. OpCode: " + hex(self.opcode) + " Not found in logical lookup table.")
 
+    def execute_misc_instruction(self):
+        instruction = self.opcode & 0x000F
+        try:
+            self.misc_opcode_lookup[instruction]()
+        except KeyError:
+            print("ERROR. OpCode: " + hex(self.opcode) + " Not found in misc lookup table.")
 
     def jump_to_address(self):
         """
@@ -175,7 +188,7 @@ class Chip8Cpu:
         """
         Asigna a I nnn (?)
         """
-        self.registers['I'] = (self.opcode & 0x0FFF)
+        self.registers['I'] = numpy.uint16(self.opcode & 0x0FFF)
 
     def set_vx_bitwise_random(self):
         """
@@ -256,58 +269,108 @@ class Chip8Cpu:
         """
         Suma Vy a Vx. Si llevamos un bit establecemos la bandera a 1
         """
-        self.registers['v'][0xf] = 0 # No borrow
+        self.registers['v'][0xf] = numpy.uint8(0)  # No borrow
         vx_register = (self.opcode & 0x0F00) >> 8
         vy_register = (self.opcode & 0x00F0) >> 4
 
         resultado = numpy.add(self.registers['v'][vx_register], self.registers['v'][vy_register])
 
         if (int(self.registers['v'][vx_register ]) + int(self.registers['v'][vy_register])) > 255:
-            self.registers['v'][0xf] = 1 # Borrow
+            self.registers['v'][0xf] = numpy.uint8(1)  # Borrow
         self.registers['v'][vx_register] = resultado
 
     def subtract_vx_minus_vy(self):
         """
         Resta Vy a Vx. Si llevamos un bit establecemos la bandera a 1
         """
-        self.registers['v'][0xf] = 0 # No borrow
+        self.registers['v'][0xf] = numpy.uint8(0)  # No borrow
         vx_register = (self.opcode & 0x0F00) >> 8
         vy_register = (self.opcode & 0x00F0) >> 4
 
         resultado = numpy.subtract(self.registers['v'][vx_register], self.registers['v'][vy_register])
 
         if (int(self.registers['v'][vx_register]) - int(self.registers['v'][vy_register])) < 0:
-            self.registers['v'][0xf] = 1 # Borrow
+            self.registers['v'][0xf] = numpy.uint8(1) # Borrow
         self.registers['v'][vx_register] = resultado
 
     def subtract_vy_minus_vx(self):
         """
         Resta Vx a Vy. Si llevamos un bit establecemos la bandera a 1
         """
-        self.registers['v'][0xf] = 0 # No borrow
+        self.registers['v'][0xf] = numpy.uint8(0)  # No borrow
         vx_register = (self.opcode & 0x0F00) >> 8
         vy_register = (self.opcode & 0x00F0) >> 4
 
         resultado = numpy.subtract(self.registers['v'][vy_register], self.registers['v'][vx_register])
 
         if (int(self.registers['v'][vy_register]) - int(self.registers['v'][vx_register])) < 0:
-            self.registers['v'][0xf] = 1 # Borrow
+            self.registers['v'][0xf] = numpy.uint8(1)  # Borrow
         self.registers['v'][vx_register] = resultado
 
     def store_least_bit_right_shift(self):
         """
-        Almacena el bit menos significativo de Vx en VF y luego desplaza el valor de Vx un bit a la der
+        Almacena el bit menos significativo de Vy en VF y luego desplaza el valor de Vy un bit a la der
         """
         vx_register = (self.opcode & 0x0F00) >> 8
+        vy_register = (self.opcode & 0x00F0) >> 4
 
-        self.registers['v'][0xf] = self.registers['v'][vx_register] & 0x0F
-        self.registers['v'][vx_register] = self.registers['v'][vx_register] >> 1
+        self.registers['v'][0xf] = self.registers['v'][vy_register] & 0x0F
+        self.registers['v'][vx_register] = self.registers['v'][vy_register] >> 1
 
     def store_most_bit_left_shift(self):
         """
-        Almacena el bit más significativo de Vx en VF y luego desplaza el valor de Vx un bit a la izq
+        Almacena el bit más significativo de Vy en VF y luego desplaza el valor de Vy un bit a la izq
+        """
+        vx_register = (self.opcode & 0x0F00) >> 8
+        vy_register = (self.opcode & 0x00F0) >> 4
+
+        self.registers['v'][0xf] = (self.registers['v'][vy_register] & 0xF0) >> 4
+        self.registers['v'][vx_register] = self.registers['v'][vy_register] << 1
+
+    def set_vx_to_delay_timer(self):
+        """
+        Asigna a Vx el valor de delay_timer
         """
         vx_register = (self.opcode & 0x0F00) >> 8
 
-        self.registers['v'][0xf] = (self.registers['v'][vx_register] & 0xF0) >> 4
-        self.registers['v'][vx_register] = self.registers['v'][vx_register] << 1
+        self.registers['v'][vx_register] = self.timers['delay_timer']
+
+    def set_delay_timer_to_vx(self):
+        """
+        Establece delay_timer al valor de Vx
+        """
+        vx_register = (self.opcode & 0x0F00) >> 8
+
+        self.timers['delay_timer'] = self.registers['v'][vx_register]
+
+    def set_sound_timer_to_vx(self):
+        """
+        Establece sound_timer al valor de Vx
+        """
+        vx_register = (self.opcode & 0x0F00) >> 8
+
+        self.timers['sound_timer'] = self.registers['v'][vx_register]
+
+    def add_vx_to_i(self):
+        """
+        Suma Vx a I y establece la bandera si se produce un overflow
+        """
+        vx_register = (self.opcode & 0x0F00) >> 8
+        self.registers['v'][0xf] = numpy.uint8(0)  # No overflow
+
+        resultado = numpy.add(self.registers['I'], self.registers['v'][vx_register])
+
+        if resultado < (int(self.registers['I']) + int(self.registers['v'][vx_register])):
+            self.registers['v'][0xf] = numpy.uint8(1)  # Overflow
+        self.registers['I'] = resultado
+
+    def dump_v_registers_to_memory(self):
+        """
+        Almacena los valores de los registros en la memoria
+        """
+        vx_register = (self.opcode & 0x0F00) >> 8
+
+        for index, register in enumerate(range(0x0, vx_register + 1)):
+            self.memory[self.registers['I'] + index] = self.registers['v'][register]
+
+

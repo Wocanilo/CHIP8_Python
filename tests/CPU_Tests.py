@@ -163,6 +163,49 @@ class CpuTests(unittest.TestCase):
         self.assertEqual(0x46, self.cpu.registers['v'][0x0])
         self.assertEqual(0x2, self.cpu.registers['v'][0xf])
 
+    def test_set_vx_to_delay_timer(self):
+        self.cpu.opcode = 0xF007
+
+        self.cpu.timers['delay_timer'] = 0x3
+
+        self.cpu.set_vx_to_delay_timer()
+
+        self.assertEqual(0x3, self.cpu.registers['v'][0x0])
+
+    def test_set_delay_timer_to_vx(self):
+        self.cpu.opcode = 0xF015
+
+        self.cpu.registers['v'][0x0] = 0x23
+
+        self.cpu.set_delay_timer_to_vx()
+
+        self.assertEqual(0x23, self.cpu.timers['delay_timer'])
+
+    def test_set_sound_timer_to_vx(self):
+        self.cpu.opcode = 0xF018
+
+        self.cpu.registers['v'][0x0] = 0x23
+
+        self.cpu.set_sound_timer_to_vx()
+
+        self.assertEqual(0x23, self.cpu.timers['sound_timer'])
+
+    def test_dump_v_register_to_memory(self):
+        self.cpu.opcode = 0xF355
+
+        self.cpu.registers['v'][0x0] = numpy.uint8(0x23)
+        self.cpu.registers['v'][0x1] = numpy.uint8(0x24)
+        self.cpu.registers['v'][0x2] = numpy.uint8(0x25)
+        self.cpu.registers['v'][0x3] = numpy.uint8(0x21)
+
+        self.cpu.registers['I'] = numpy.uint16(0x0)
+
+        self.cpu.dump_v_registers_to_memory()
+
+        self.assertEqual(0x21, self.cpu.memory[0x3])
+        self.assertEqual(0x24, self.cpu.memory[0x1])
+
+
 
 if __name__ == '__main__':
 

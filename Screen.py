@@ -1,5 +1,5 @@
 from pygame import display, DOUBLEBUF
-
+from pygame import draw
 
 #Constantes
 SCREEN_WIDTH = 64
@@ -18,5 +18,9 @@ PIXEL_STATES = {
 class Chip8Screen:
 
     def __init__(self, scale_factor, screen_width=SCREEN_WIDTH, screen_height=SCREEN_HEIGHT):
-        display.set_mode((screen_width * scale_factor, screen_height * scale_factor), DOUBLEBUF, SCREEN_DEPTH)
         display.init()
+        self.surface = display.set_mode((screen_width * scale_factor, screen_height * scale_factor), DOUBLEBUF, SCREEN_DEPTH)
+        display.set_caption('CHIP8 Emulator')
+
+    def clear_screen(self):
+        self.surface.fill(PIXEL_STATES[0])
