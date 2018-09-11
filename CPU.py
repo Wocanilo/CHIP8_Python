@@ -9,7 +9,7 @@ import numpy
 
 class Chip8Cpu:
 
-    def __init__(self):
+    def __init__(self, chip8_screen):
 
         # Existen 16 registros de proposito general (V0-VF).
         # VF se encuentra reservado como marca para algunas instrucciones
@@ -51,6 +51,8 @@ class Chip8Cpu:
             0xA: self.set_i_to_address,
             0xB: self.jump_to_address,
             0xC: self.set_vx_bitwise_random,
+            0xD: self.draw_in_screen,
+            0xF: self.execute_misc_instruction
         }
 
         self.logic_opcode_lookup = {
@@ -63,7 +65,6 @@ class Chip8Cpu:
             0x6: self.store_least_bit_right_shift,
             0x7: self.subtract_vy_minus_vx,
             0xE: self.store_most_bit_left_shift,
-            0xF: self.execute_misc_instruction
         }
 
         self.misc_opcode_lookup = {
@@ -77,6 +78,7 @@ class Chip8Cpu:
 
         self.opcode = 0
         self.memory = bytearray(MAX_MEMORY)
+        self.screen = chip8_screen
         seed(urandom(20))
 
     def decrement_timers(self):
@@ -398,6 +400,19 @@ class Chip8Cpu:
         """
         vx_register = (self.opcode & 0x0F00) >> 8
         self.registers['index'] = self.registers['v'][vx_register] * 5
+
+    def draw_in_screen(self):
+
+        vx_register = (self.opcode & 0x0F00) >> 8
+        vy_register = (self.opcode & 0x00F0) >> 4
+        self.registers['v'][0xf] = 0
+
+        for fila in range(self.opcode & 0x000F):
+            for columna in range(8):
+                if self.screen.get_pixel(self.registers['v'][vx_register], self.registers['v'][vy_register]) == 1:
+                    self.registers['v'][0xf] = 1
+                self.screen.draw_pixel(self.registers['v'][vx_register], self.registers['v'][vy_register], 1)
+
 
 
 

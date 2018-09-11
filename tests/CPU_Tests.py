@@ -1,13 +1,15 @@
 import unittest
 from CPU import Chip8Cpu
 import numpy
+from Screen import Chip8Screen
 
 class CpuTests(unittest.TestCase):
 
 
     # Preparamos la CPU para ser usada durante los tests
     def setUp(self):
-        self.cpu = Chip8Cpu()
+        screen = Chip8Screen(10)
+        self.cpu = Chip8Cpu(screen)
 
     def test_rom(self):
         # Comprueba si podemos cargar un archivo en memoria correctamente

@@ -9,7 +9,7 @@ if __name__ == '__main__':
     #We need to create the screen first
     screen = Chip8Screen(SCALE_FACTOR)
     #Then we pass the screen to the CPU
-    cpu = Chip8Cpu()
+    cpu = Chip8Cpu(screen)
 
     cpu.load_rom("FONTS.chip8", 0x050)
     cpu.load_rom("pong.rom")

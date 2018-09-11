@@ -45,3 +45,6 @@ class Chip8Screen:
         else:
             return 1
 
+    def update(self):
+        display.flip()
+
