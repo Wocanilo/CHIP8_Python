@@ -1,13 +1,10 @@
-# CHIP8 CPU
-
-
 from Config import MAX_MEMORY, PROGRAM_COUNTER_START, DEBUG
 from os import urandom
 from random import seed, randint
 import numpy
 
 
-class Chip8Cpu:
+class HertzCPU:
 
     def __init__(self):
 

@@ -1,4 +1,4 @@
-from CPU import Chip8Cpu
+from CPU import HertzCPU
 from pygame import time
 import npyscreen
 import threading
@@ -25,7 +25,7 @@ class MainForm(npyscreen.Form):
         self.parentApp.setNextForm(None)
 
     def execute(self):
-        cpu = Chip8Cpu()
+        cpu = HertzCPU()
 
         cpu.load_rom(inputfile, 0)
 
@@ -70,10 +70,3 @@ if __name__ == '__main__':
         interprete.run()
     else:
         parser.print_usage()
-
-
-
-
-
-
-
