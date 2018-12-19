@@ -1,6 +1,20 @@
-# CHIP8 Python
+#  Second
+![](web/second.gif)
+Second is an Hertz CPU interpreter. It lets you debug programs without reflashing the FPGA every time you want to try something. As Hertz is based on the CHIP8 it also lets you debug non-graphical programs made for it.
 
-Se trata de un emulador de CHIP8 basado en Python con el objetivo de aprender el funcionamiento de una CPU y el uso de operadores binarios.
-El soporte del sistema no es completo, ya que aún no ha sido implementada correctamente la función encargada de dibujar en pantalla.
+## Requirements
 
-Su estructura está basada en el emulador de craigthomas: https://github.com/craigthomas/Chip8Python
+ - Python3
+ - Pygame
+ - Npyscreen
+
+## Usage
+    usage: main.py [-h] [-f FILE] [-c CLOCK_SPEED] [-d]
+    
+    optional arguments:
+      -h, --help            show this help message and exit
+      -f FILE, --file FILE
+      -c CLOCK_SPEED, --clockspeed CLOCK_SPEED
+      -d, --dump
+
+Dump makes the interpreter dump the contents of registers on screen when the program ends.
