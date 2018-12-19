@@ -9,7 +9,7 @@ import numpy
 
 class Chip8Cpu:
 
-    def __init__(self, chip8_screen):
+    def __init__(self):
 
         # Existen 16 registros de proposito general (V0-VF).
         # VF se encuentra reservado como marca para algunas instrucciones
@@ -38,7 +38,7 @@ class Chip8Cpu:
         # Debemos divir los OPCODES segun el tipo de operacion y construir diccionarios que 'traduzcan' el codigo
 
         self.general_opcode_lookup = {
-            0x0: self.clear_or_end_subroutine,
+            0x0: self.end_subroutine,
             0x1: self.jump_to_address,
             0x2: self.call_subroutine,
             0x3: self.skip_if_vx_equals_nn,
@@ -51,7 +51,6 @@ class Chip8Cpu:
             0xA: self.set_i_to_address,
             0xB: self.jump_to_address,
             0xC: self.set_vx_bitwise_random,
-            0xD: self.draw_in_screen,
             0xF: self.execute_misc_instruction
         }
 
@@ -72,13 +71,11 @@ class Chip8Cpu:
             0x7: self.set_vx_to_delay_timer,
             0x5: self.dump_or_load_v_registers_to_memory_or_set_timer,
             0x8: self.set_sound_timer_to_vx,
-            0x9: self.set_i_to_sprite_location,
             0xE: self.add_vx_to_i
         }
 
         self.opcode = 0
         self.memory = bytearray(MAX_MEMORY)
-        self.screen = chip8_screen
         seed(urandom(20))
 
     def decrement_timers(self):
@@ -95,10 +92,10 @@ class Chip8Cpu:
         :param offset: la ubicación de memoria donde empezar a cargar el archivo
 
         """
-        with open(rom, "rb") as file_data:
+        with open(rom, "r") as file_data:
             # Enumerate nos permite iterar sobre un objeto mientras mantenemos un contador del bucle actual
-            for index, val in enumerate(file_data.read()):  # Is a .read() needed?
-                self.memory[index + offset] = val
+            for index, val in enumerate(file_data.read().split()):  # Is a .read() needed?
+                self.memory[index + offset] = int(val, 2)
 
     def execute_instruction(self):
         """
@@ -110,16 +107,16 @@ class Chip8Cpu:
         # Debemos desplazar el valor del primer byte 8 puestos a la izq. para luego realizar un OR sobre ambos bytes
         instruction = self.memory[self.registers['pc']] << 8 | self.memory[self.registers['pc'] + 1]
 
-        self.registers['pc'] = self.registers['pc'] + 2
-
         if DEBUG:
-            print("Proxima instruccion: " + hex(instruction))
+            print("Instruccion: " + hex(instruction))
             print("Direccion actual del programa: " + str(self.registers['pc']))
+
+        self.registers['pc'] = self.registers['pc'] + 2
 
         self.opcode = instruction
         instruction = (instruction & 0xF000) >> 12
         try:
-            self.general_opcode_lookup[instruction]()
+            self.instruction_name = self.general_opcode_lookup[instruction]()
         except KeyError:
             print("ERROR. OpCode: " + hex(self.opcode) + " Not found in general lookup table.")
 
@@ -128,16 +125,19 @@ class Chip8Cpu:
     def execute_logic_instruction(self):
         instruction = self.opcode & 0x000F
         try:
-            self.logic_opcode_lookup[instruction]()
+            instruction_name = self.logic_opcode_lookup[instruction]()
         except KeyError:
             print("ERROR. OpCode: " + hex(self.opcode) + " Not found in logical lookup table.")
+        return instruction_name
 
     def execute_misc_instruction(self):
         instruction = self.opcode & 0x000F
         try:
-            self.misc_opcode_lookup[instruction]()
+            instruction_name = self.misc_opcode_lookup[instruction]()
         except KeyError:
             print("ERROR. OpCode: " + hex(self.opcode) + " Not found in misc lookup table.")
+
+        return instruction_name
 
     def jump_to_address(self):
         """
@@ -147,6 +147,7 @@ class Chip8Cpu:
             self.registers['pc'] = (self.opcode & 0x0FFF) + self.registers['v'][0]
         else:
             self.registers['pc'] = self.opcode & 0x0FFF
+            return ("JP " + str(self.opcode & 0x0FFF),)
 
     def set_vx_to_nn(self):
         """
@@ -156,15 +157,28 @@ class Chip8Cpu:
         value_to_set = (self.opcode & 0x00FF)
         self.registers['v'][register_to_set] = numpy.uint8(value_to_set)
 
+        mnemonic = "LD V" +  str(register_to_set) + ", " +  str(value_to_set)
+        human = "V" + str(register_to_set) + " <= " + str(value_to_set)
+        result = "V" + str(register_to_set) + " = " + str(self.registers['v'][register_to_set])
+
+        return (mnemonic, human, result)
+
     def skip_if_vx_equals_nn(self):
         """
         Si Vx es igual a nn saltamos la siguiente instrucción
         """
         register_to_check = (self.opcode & 0x0F00) >> 8
         value_to_check = (self.opcode & 0x00FF)
+        result = "False"
 
         if self.registers['v'][register_to_check] == value_to_check:
             self.registers['pc'] = self.registers['pc'] + 2
+            result = "True"
+
+        mnemonic = "SE V" + str(register_to_check) + ", " + str(value_to_check)
+        human = "V" + str(register_to_check) + " == " + str(value_to_check)
+
+        return (mnemonic, human, result)
 
     def skip_if_vx_not_equals_nn(self):
         """
@@ -172,9 +186,16 @@ class Chip8Cpu:
         """
         register_to_check = (self.opcode & 0x0F00) >> 8
         value_to_check = (self.opcode & 0x00FF)
+        result = "False"
 
         if self.registers['v'][register_to_check] != value_to_check:
             self.registers['pc'] = self.registers['pc'] + 2
+            result = "True"
+
+        mnemonic = "SNE V" + str(register_to_check) + ", " + str(value_to_check)
+        human = "V" + str(register_to_check) + " != " + str(value_to_check)
+
+        return (mnemonic, human, result)
 
     def skip_if_vx_equals_vy(self):
         """
@@ -182,9 +203,16 @@ class Chip8Cpu:
         """
         vx_register = (self.opcode & 0x0F00) >> 8
         vy_register = (self.opcode & 0x00F0) >> 4
+        result = "False"
 
         if self.registers['v'][vx_register] == self.registers['v'][vy_register]:
             self.registers['pc'] = self.registers['pc'] + 2
+            result = "True"
+
+        mnemonic = "SE V" + str(vx_register) + ", V" + str(vy_register)
+        human = "V" + str(vx_register) + " == " + "V" + str(vy_register)
+
+        return (mnemonic, human, result)
 
     def skip_if_vx_not_equals_vy(self):
         """
@@ -192,9 +220,16 @@ class Chip8Cpu:
         """
         vx_register = (self.opcode & 0x0F00) >> 8
         vy_register = (self.opcode & 0x00F0) >> 4
+        result = "False"
 
         if self.registers['v'][vx_register] != self.registers['v'][vy_register]:
             self.registers['pc'] = self.registers['pc'] + 2
+            result = "True"
+
+        mnemonic = "SNE V" + str(vx_register) + ", V" + str(vy_register)
+        human = "V" + str(vx_register) + " != " + "V" + str(vy_register)
+
+        return (mnemonic, human, result)
 
     def set_i_to_address(self):
         """
@@ -202,14 +237,27 @@ class Chip8Cpu:
         """
         self.registers['I'] = numpy.uint16(self.opcode & 0x0FFF)
 
+        mnemonic = "LD I, " + str(self.opcode & 0x0FFF)
+        human = "I <= " + str(self.opcode & 0x0FFF)
+        result = "I = " + str(self.opcode & 0x0FFF)
+
+        return (mnemonic, human, result)
+
     def set_vx_bitwise_random(self):
         """
         Bitwise random number with nnn and set result to Vx
         """
         vx_register = (self.opcode & 0x0F00) >> 8
         nnn_value = (self.opcode & 0x00FF)
+        random_number = randint(0, 255)
 
-        self.registers['v'][vx_register] = numpy.uint8(randint(0, 255) & nnn_value)
+        self.registers['v'][vx_register] = numpy.uint8(random_number & nnn_value)
+
+        mnemonic = "RND V" + str(vx_register) + ", " + str(nnn_value)
+        human = "V" + str(vx_register) + " <= " + str(random_number) + " & " + str(nnn_value)
+        result = "V" + str(vx_register) + " = " + str(self.registers['v'][vx_register])
+
+        return (mnemonic, human, result)
 
     def set_vx_to_vy(self):
         """
@@ -220,6 +268,12 @@ class Chip8Cpu:
 
         self.registers['v'][vx_register] = numpy.uint8(self.registers['v'][vy_register])
 
+        mnemonic = "LD V" + str(vx_register) + ", V" + str(vy_register)
+        human = "V" + str(vx_register) + " <= V" + str(vy_register)
+        result = "V" + str(vx_register) + " = " + str(self.registers['v'][vy_register])
+
+        return (mnemonic, human, result)
+
     def set_vx_to_vx_or_vy(self):
         """
         Realiza la operación OR sobre Vx y Vy y guarda el valor en Vx
@@ -227,7 +281,13 @@ class Chip8Cpu:
         vx_register = (self.opcode & 0x0F00) >> 8
         vy_register = (self.opcode & 0x00F0) >> 4
 
-        self.registers['v'][vx_register] = numpy.uint8(self.registers['v'][vx_register] | self.registers['v'][vy_register])
+        self.registers['v'][vx_register] = numpy.bitwise_or(self.registers['v'][vx_register], self.registers['v'][vy_register])
+
+        mnemonic = "OR V" + str(vx_register) + ", V" + str(vy_register)
+        human = "V" + str(vx_register) + " | V" + str(vy_register)
+        result = "V" + str(vx_register) + " = " + str(self.registers['v'][vx_register])
+
+        return (mnemonic, human, result)
 
     def set_vx_to_vx_and_vy(self):
         """
@@ -236,16 +296,28 @@ class Chip8Cpu:
         vx_register = (self.opcode & 0x0F00) >> 8
         vy_register = (self.opcode & 0x00F0) >> 4
 
-        self.registers['v'][vx_register] = numpy.uint8(self.registers['v'][vx_register] & self.registers['v'][vy_register])
+        self.registers['v'][vx_register] = numpy.bitwise_and(self.registers['v'][vx_register], self.registers['v'][vy_register])
+
+        mnemonic = "AND V" + str(vx_register) + ", V" + str(vy_register)
+        human = "V" + str(vx_register) + " <= V" + str(vx_register) + " & V" + str(vy_register)
+        result = "V" + str(vx_register) + " = " + str(self.registers['v'][vx_register])
+
+        return (mnemonic, human, result)
 
     def set_vx_to_vx_xor_vy(self):
         """
-        Realiza la operación AND sobre Vx y Vy y guarda el valor en Vx
+        Realiza la operación XOR sobre Vx y Vy y guarda el valor en Vx
         """
         vx_register = (self.opcode & 0x0F00) >> 8
         vy_register = (self.opcode & 0x00F0) >> 4
 
-        self.registers['v'][vx_register] = numpy.uint8(self.registers['v'][vx_register] ^ self.registers['v'][vy_register])
+        self.registers['v'][vx_register] = numpy.bitwise_xor(self.registers['v'][vx_register], self.registers['v'][vy_register])
+
+        mnemonic = "XOR V" + str(vx_register) + ", V" + str(vy_register)
+        human = "V" + str(vx_register) + " <= V" + str(vx_register) + " ^ V" + str(vy_register)
+        result = "V" + str(vx_register) + " = " + str(self.registers['v'][vx_register])
+
+        return (mnemonic, human, result)
 
     def call_subroutine(self):
         """
@@ -258,7 +330,13 @@ class Chip8Cpu:
 
         self.registers['pc'] = subroutine_address
 
-    def clear_or_end_subroutine(self):
+        mnemonic = "CALL " + str(subroutine_address)
+        human = "PC <= " + str(subroutine_address) + ", sp <= " + str(self.registers['sp'])
+        result = "PC <= " + str(subroutine_address) + ", sp <= " + str(self.registers['sp'])
+
+        return (mnemonic, human, result)
+
+    def end_subroutine(self):
         """
         Limpia la pantalla
         El flujo del programa se devuelve a la instrucción que llamó a la subrutina
@@ -266,8 +344,12 @@ class Chip8Cpu:
         if self.opcode & 0x000F == 0xE:
             self.registers['pc'] = self.registers['stack'][self.registers['sp']]
             self.registers['sp'] = self.registers['sp'] - 1
-        # else:
-            # clear screen
+
+        mnemonic = "RET"
+        human = "PC <= " + str(self.registers['stack'][self.registers['sp']]) + ", sp <= " + str(self.registers['sp'])
+        result = "PC <= " + str(self.registers['stack'][self.registers['sp']]) + ", sp <= " + str(self.registers['sp'])
+
+        return (mnemonic, human, result)
 
     def add_nn_to_vx_no_flag(self):
         """
@@ -276,6 +358,12 @@ class Chip8Cpu:
         vx_register = (self.opcode & 0x0F00) >> 8
 
         self.registers['v'][vx_register] = numpy.add(self.registers['v'][vx_register], numpy.uint8(self.opcode & 0x00FF))
+
+        mnemonic = "ADD V" + str(vx_register) + ", " + str(self.opcode & 0x00FF)
+        human = "V" + str(vx_register) + " <= V" + str(vx_register) + " + " + str(self.opcode & 0x00FF)
+        result = "V" + str(vx_register) + " = " + str(self.registers['v'][vx_register])
+
+        return (mnemonic, human, result)
 
     def add_vy_to_vx(self):
         """
@@ -291,6 +379,12 @@ class Chip8Cpu:
             self.registers['v'][0xf] = numpy.uint8(1)  # Borrow
         self.registers['v'][vx_register] = resultado
 
+        mnemonic = "ADD V" + str(vx_register) + ", V" + str(vy_register)
+        human = "V" + str(vx_register) + " <= V" + str(vx_register) + " + V" + str(vy_register)
+        result = "V" + str(vx_register) + " = " + str(self.registers['v'][vx_register])
+
+        return (mnemonic, human, result)
+
     def subtract_vx_minus_vy(self):
         """
         Resta Vy a Vx. Si llevamos un bit establecemos la bandera a 1
@@ -304,6 +398,12 @@ class Chip8Cpu:
         if (int(self.registers['v'][vx_register]) - int(self.registers['v'][vy_register])) < 0:
             self.registers['v'][0xf] = numpy.uint8(1) # Borrow
         self.registers['v'][vx_register] = resultado
+
+        mnemonic = "SUB V" + str(vx_register) + ", V" + str(vy_register)
+        human = "V" + str(vx_register) + " <= V" + str(vx_register) + " - V" + str(vy_register)
+        result = "V" + str(vx_register) + " = " + str(self.registers['v'][vx_register])
+
+        return (mnemonic, human, result)
 
     def subtract_vy_minus_vx(self):
         """
@@ -319,6 +419,12 @@ class Chip8Cpu:
             self.registers['v'][0xf] = numpy.uint8(1)  # Borrow
         self.registers['v'][vx_register] = resultado
 
+        mnemonic = "SUB V" + str(vx_register) + ", V" + str(vy_register)
+        human = "V" + str(vy_register) + " <= V" + str(vx_register) + " - V" + str(vy_register)
+        result = "V" + str(vx_register) + " = " + str(self.registers['v'][vx_register])
+
+        return (mnemonic, human, result)
+
     def store_least_bit_right_shift(self):
         """
         Almacena el bit menos significativo de Vy en VF y luego desplaza el valor de Vy un bit a la der
@@ -327,7 +433,13 @@ class Chip8Cpu:
         vy_register = (self.opcode & 0x00F0) >> 4
 
         self.registers['v'][0xf] = self.registers['v'][vy_register] & 0x0F
-        self.registers['v'][vx_register] = self.registers['v'][vy_register] >> 1
+        self.registers['v'][vx_register] = self.registers['v'][vx_register] >> 1
+
+        mnemonic = "SHR V" + str(vx_register) + ", V" + str(vy_register)
+        human = "V" + str(vx_register) + " <= V" + str(vx_register) + " >> 1"
+        result = "V" + str(vx_register) + " = " + str(self.registers['v'][vx_register])
+
+        return (mnemonic, human, result)
 
     def store_most_bit_left_shift(self):
         """
@@ -337,7 +449,13 @@ class Chip8Cpu:
         vy_register = (self.opcode & 0x00F0) >> 4
 
         self.registers['v'][0xf] = (self.registers['v'][vy_register] & 0xF0) >> 4
-        self.registers['v'][vx_register] = self.registers['v'][vy_register] << 1
+        self.registers['v'][vx_register] = self.registers['v'][vx_register] << 1
+
+        mnemonic = "SHL V" + str(vx_register) + ", V" + str(vy_register)
+        human = "V" + str(vx_register) + " <= V" + str(vx_register) + " << 1"
+        result = "V" + str(vx_register) + " = " + str(self.registers['v'][vx_register])
+
+        return (mnemonic, human, result)
 
     def set_vx_to_delay_timer(self):
         """
@@ -347,6 +465,12 @@ class Chip8Cpu:
 
         self.registers['v'][vx_register] = self.timers['delay_timer']
 
+        mnemonic = "LD V" + str(vx_register) + ", DT"
+        human = "V" + str(vx_register) + "<= DT"
+        result = "V" + str(vx_register) + " = " + str(self.registers['v'][vx_register])
+
+        return (mnemonic, human, result)
+
     def set_sound_timer_to_vx(self):
         """
         Establece sound_timer al valor de Vx
@@ -354,6 +478,12 @@ class Chip8Cpu:
         vx_register = (self.opcode & 0x0F00) >> 8
 
         self.timers['sound_timer'] = self.registers['v'][vx_register]
+
+        mnemonic = "LD V" + str(vx_register) + ", ST"
+        human = "V" + str(vx_register) + "<= ST"
+        result = "V" + str(vx_register) + " = " + str(self.registers['v'][vx_register])
+
+        return (mnemonic, human, result)
 
     def add_vx_to_i(self):
         """
@@ -367,6 +497,8 @@ class Chip8Cpu:
         if resultado < (int(self.registers['I']) + int(self.registers['v'][vx_register])):
             self.registers['v'][0xf] = numpy.uint8(1)  # Overflow
         self.registers['I'] = resultado
+
+        return ("NOT IMPLEMENTED", "NOT IMPLEMENTED", "NOT IMPLEMENTED")
 
     def dump_or_load_v_registers_to_memory_or_set_timer(self):
         """
@@ -384,6 +516,8 @@ class Chip8Cpu:
         if dump_or_load_or_set == 1:
             self.timers['delay_timer'] = self.registers['v'][vx_register]
 
+        return ("NOT IMPLEMENTED", "NOT IMPLEMENTED", "NOT IMPLEMENTED")
+
     def store_bcd_in_memory(self):
         """
         Guarda en memoria la representacion del numero Vx
@@ -394,32 +528,4 @@ class Chip8Cpu:
         self.memory[self.registers['I'] + 1] = (self.registers['v'][vx_register] & 0x0F0) >> 4
         self.memory[self.registers['I'] + 2] = (self.registers['v'][vx_register] & 0x00F)
 
-    def set_i_to_sprite_location(self):
-        """
-        ???
-        """
-        vx_register = (self.opcode & 0x0F00) >> 8
-        self.registers['index'] = self.registers['v'][vx_register] * 5
-
-    def draw_in_screen(self):
-
-        vx_register = (self.opcode & 0x0F00) >> 8
-        vy_register = (self.opcode & 0x00F0) >> 4
-        self.registers['v'][0xf] = 0
-
-        for fila in range(self.opcode & 0x000F):
-            for columna in range(8):
-                if self.screen.get_pixel(self.registers['v'][vx_register], self.registers['v'][vy_register]) == 1:
-                    self.registers['v'][0xf] = 1
-                self.screen.draw_pixel(self.registers['v'][vx_register], self.registers['v'][vy_register], 1)
-
-
-
-
-
-
-
-
-
-
-
+        return ("NOT IMPLEMENTED", "NOT IMPLEMENTED", "NOT IMPLEMENTED")
